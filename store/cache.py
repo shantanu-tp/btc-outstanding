@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from datetime import datetime, timezone
 
 import streamlit as st
@@ -77,6 +78,24 @@ def clear_cache() -> None:
     get_non_stay_ageing.clear()
     get_stay_on_acc.clear()
     get_ns_on_acc.clear()
+    load_stay_mom.clear()
+    load_nonstay_mom.clear()
+
+
+# ── MTD collections (receipt tables — 1-hour TTL, keyed by date) ─────────────
+
+@st.cache_data(ttl=3600, show_spinner="Loading stay collections…")
+def load_stay_mom(today: dt.date) -> pd.DataFrame:
+    """MTD collections from receipt_data. Keyed by date — invalidates at midnight."""
+    from data.receipts import fetch_stay_mom
+    return fetch_stay_mom(today)
+
+
+@st.cache_data(ttl=3600, show_spinner="Loading non-stay collections…")
+def load_nonstay_mom(today: dt.date) -> pd.DataFrame:
+    """MTD collections from non_stay_receipt. Keyed by date — invalidates at midnight."""
+    from data.receipts import fetch_nonstay_mom
+    return fetch_nonstay_mom(today)
 
 
 def sidebar_refresh_widget() -> None:
