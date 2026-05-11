@@ -16,6 +16,7 @@ from pathlib import Path
 import pandas as pd
 
 from config.settings import AGEING_LABELS, EXCLUDED_STATUSES
+from config.clients import apply_canonical_names
 
 log = logging.getLogger(__name__)
 
@@ -113,7 +114,7 @@ def _build_client_month(df: pd.DataFrame) -> pd.DataFrame:
     )
     agg["_sort"] = pd.to_datetime(agg["co_month"], format="%b-%y", errors="coerce")
     agg = agg.sort_values(["corp_id", "_sort"]).drop(columns="_sort").reset_index(drop=True)
-    return agg
+    return apply_canonical_names(agg, "corp_id", "corporate_name")
 
 
 def _build_client_ageing(df: pd.DataFrame) -> pd.DataFrame:
@@ -146,7 +147,7 @@ def _build_client_ageing(df: pd.DataFrame) -> pd.DataFrame:
     bucket_order = {b: i for i, b in enumerate(AGEING_LABELS)}
     agg["_sort"] = agg["ageing_bucket"].map(bucket_order).fillna(99)
     agg = agg.sort_values(["corp_id", "_sort"]).drop(columns="_sort").reset_index(drop=True)
-    return agg
+    return apply_canonical_names(agg, "corp_id", "corporate_name")
 
 
 def _load_stay_on_acc() -> pd.DataFrame:
@@ -209,7 +210,7 @@ def _build_non_stay_ageing(df: pd.DataFrame) -> pd.DataFrame:
     bucket_order = {b: i for i, b in enumerate(NON_STAY_AGEING_LABELS)}
     agg["_sort"] = agg["ageing_bucket"].map(bucket_order).fillna(99)
     agg = agg.sort_values(["corp_id", "sub_category", "_sort"]).drop(columns="_sort").reset_index(drop=True)
-    return agg
+    return apply_canonical_names(agg, "corp_id", "corporate_name")
 
 
 # ── Public API ────────────────────────────────────────────────────────────────

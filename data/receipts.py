@@ -13,6 +13,7 @@ import datetime as dt
 import pandas as pd
 
 from config.connections import get_pg_conn
+from config.clients import apply_canonical_names
 
 
 def month_ranges(today: dt.date, n: int = 6) -> list[tuple[dt.date, dt.date, str]]:
@@ -64,7 +65,7 @@ def fetch_stay_mom(today: dt.date) -> pd.DataFrame:
     """
     df = _read_sql(sql)
     df["corporate_id"] = df["corporate_id"].astype(str).str.strip()
-    return df
+    return apply_canonical_names(df, "corporate_id", "corporate_name")
 
 
 def fetch_nonstay_mom(today: dt.date) -> pd.DataFrame:
@@ -91,4 +92,4 @@ def fetch_nonstay_mom(today: dt.date) -> pd.DataFrame:
     """
     df = _read_sql(sql)
     df["corporate_id"] = df["corporate_id"].astype(str).str.strip()
-    return df
+    return apply_canonical_names(df, "corporate_id", "corporate_name")
