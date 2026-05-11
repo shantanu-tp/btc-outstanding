@@ -100,6 +100,11 @@ def _build_client_month(df: pd.DataFrame) -> pd.DataFrame:
     active = df[~df["status"].isin(EXCLUDED_STATUSES)] if "status" in df.columns else df
     active = active[active["co_month"].notna()]
 
+    current_month = pd.Timestamp(dt.date.today().replace(day=1))
+    active = active[
+        pd.to_datetime(active["co_month"], format="%b-%y", errors="coerce") <= current_month
+    ]
+
     agg = (
         active.groupby(["corp_id", "co_month"])["outstanding"]
         .sum()
