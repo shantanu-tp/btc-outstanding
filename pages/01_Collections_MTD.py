@@ -4,8 +4,8 @@ Month-to-date payment receipts, same-day-of-month cutoff, last 6 months.
 Two sections: Stay (receipt_data) and Non-Stay (non_stay_receipt).
 
 For each section the user can:
-  - Exclude a client by ID or name → splits the total into "excl. X" + "X"
-  - Toggle between Summary (one total row) and By Client (full client list)
+  - Track specific clients separately (multiselect) — they appear as individual rows in Summary
+  - Toggle between Summary (one total row + tracked clients) and By Client (full client list)
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import pandas as pd
 import streamlit as st
 
 from components.tables import render_download_buttons
-from config.settings import DISPLAY_UNITS, DEFAULT_UNIT, UNIT_DIVISOR
+from config.settings import DISPLAY_UNITS, DEFAULT_UNIT
 from store.cache import load_nonstay_mom, load_stay_mom
 from utils.formatting import fmt_money
 from utils.ui import apply_theme, page_header, section
@@ -65,13 +65,6 @@ def _month_cols(df: pd.DataFrame) -> list[str]:
     return [c for c in df.columns if c not in ("corporate_id", "corporate_name")]
 
 
-def _match_mask(df: pd.DataFrame, query: str) -> pd.Series:
-    q = query.strip().lower()
-    by_id   = df["corporate_id"].str.lower() == q
-    by_name = df["corporate_name"].str.lower().str.contains(q, na=False, regex=False)
-    return by_id | by_name
-
-
 def _render_section(df: pd.DataFrame, key: str, title: str) -> None:
     section(title)
 
@@ -84,10 +77,11 @@ def _render_section(df: pd.DataFrame, key: str, title: str) -> None:
 
     ctrl1, ctrl2 = st.columns([3, 1])
     with ctrl1:
-        excl_input = st.text_input(
-            "Exclude client (ID or name)",
-            key=f"{key}_excl",
-            placeholder="e.g. 25902 or Zomato — leave blank to show all",
+        tracked = st.multiselect(
+            "Track clients separately",
+            options=sorted(df["corporate_name"].dropna().unique()),
+            key=f"{key}_tracked",
+            placeholder="Select clients to show as separate rows…",
         )
     with ctrl2:
         view = st.radio(
@@ -97,38 +91,24 @@ def _render_section(df: pd.DataFrame, key: str, title: str) -> None:
             horizontal=True,
         )
 
-    if excl_input.strip():
-        mask    = _match_mask(df, excl_input)
-        excl_df = df[mask].copy()
-        main_df = df[~mask].copy()
-        n_matched = int(mask.sum())
-    else:
-        excl_df   = pd.DataFrame(columns=df.columns)
-        main_df   = df.copy()
-        n_matched = 0
-
-    if n_matched > 0:
-        names = ", ".join(excl_df["corporate_name"].unique()[:3])
-        if n_matched > 3:
-            names += f" +{n_matched - 3} more"
-        st.caption(f"Excluding: **{names}**")
-
     fmt = {c: (lambda v, u=unit: fmt_money(v, u)) for c in month_cols}
+
+    if tracked:
+        tracked_mask = df["corporate_name"].isin(tracked)
+        tracked_df   = df[tracked_mask].copy()
+        main_df      = df[~tracked_mask].copy()
+    else:
+        tracked_df = pd.DataFrame(columns=df.columns)
+        main_df    = df.copy()
 
     # ── Summary view ──────────────────────────────────────────────────────────
     if view == "Summary":
-        if excl_input.strip() and not excl_df.empty:
-            excl_label = (
-                excl_df["corporate_name"].iloc[0]
-                if len(excl_df) == 1
-                else excl_input.strip()
-            )
-            rows = {
-                f"Total (excl. {excl_label})": {c: main_df[c].sum() for c in month_cols},
-                excl_label:                    {c: excl_df[c].sum() for c in month_cols},
-            }
-        else:
-            rows = {"All Clients": {c: df[c].sum() for c in month_cols}}
+        rows: dict[str, dict] = {
+            "Total": {c: main_df[c].sum() for c in month_cols}
+        }
+        for name in tracked:
+            subset = tracked_df[tracked_df["corporate_name"] == name]
+            rows[name] = {c: subset[c].sum() for c in month_cols}
 
         summary_df = pd.DataFrame(rows).T
         summary_df.index.name = "Client"
@@ -140,12 +120,7 @@ def _render_section(df: pd.DataFrame, key: str, title: str) -> None:
 
     # ── By Client view ────────────────────────────────────────────────────────
     else:
-        if excl_input.strip() and not excl_df.empty:
-            display_df = pd.concat([excl_df, main_df], ignore_index=True)
-        else:
-            display_df = df.copy()
-
-        display_df = display_df.set_index("corporate_name")
+        display_df = df.set_index("corporate_name").drop(columns=["corporate_id"])
         display_df.index.name = "Client"
 
         st.dataframe(

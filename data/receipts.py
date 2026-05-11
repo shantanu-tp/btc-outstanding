@@ -27,7 +27,7 @@ def month_ranges(today: dt.date, n: int = 6) -> list[tuple[dt.date, dt.date, str
         last_day = calendar.monthrange(year, month)[1]
         start = dt.date(year, month, 1)
         end   = dt.date(year, month, min(today.day, last_day))
-        label = start.strftime("%b-%y")
+        label = f"{today.day:02d}-{start.strftime('%b-%y')}"
         result.append((start, end, label))
     return result
 
