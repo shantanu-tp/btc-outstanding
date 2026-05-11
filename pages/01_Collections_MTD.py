@@ -75,13 +75,18 @@ def _render_section(df: pd.DataFrame, key: str, title: str) -> None:
     month_cols = _month_cols(df)
     unit = st.session_state.get("display_unit", DEFAULT_UNIT)
 
+    options = sorted(
+        f"{row.corporate_id} — {row.corporate_name}"
+        for row in df[["corporate_id", "corporate_name"]].dropna().itertuples(index=False)
+    )
+
     ctrl1, ctrl2 = st.columns([3, 1])
     with ctrl1:
-        tracked = st.multiselect(
+        tracked_opts = st.multiselect(
             "Track clients separately",
-            options=sorted(df["corporate_name"].dropna().unique()),
+            options=options,
             key=f"{key}_tracked",
-            placeholder="Select clients to show as separate rows…",
+            placeholder="Search by ID or name…",
         )
     with ctrl2:
         view = st.radio(
@@ -93,8 +98,9 @@ def _render_section(df: pd.DataFrame, key: str, title: str) -> None:
 
     fmt = {c: (lambda v, u=unit: fmt_money(v, u)) for c in month_cols}
 
-    if tracked:
-        tracked_mask = df["corporate_name"].isin(tracked)
+    tracked_ids = {opt.split(" — ")[0] for opt in tracked_opts}
+    if tracked_ids:
+        tracked_mask = df["corporate_id"].isin(tracked_ids)
         tracked_df   = df[tracked_mask].copy()
         main_df      = df[~tracked_mask].copy()
     else:
@@ -106,9 +112,10 @@ def _render_section(df: pd.DataFrame, key: str, title: str) -> None:
         rows: dict[str, dict] = {
             "Total": {c: main_df[c].sum() for c in month_cols}
         }
-        for name in tracked:
-            subset = tracked_df[tracked_df["corporate_name"] == name]
-            rows[name] = {c: subset[c].sum() for c in month_cols}
+        for opt in tracked_opts:
+            cid, name = opt.split(" — ", 1)
+            subset = tracked_df[tracked_df["corporate_id"] == cid]
+            rows[f"{cid} — {name}"] = {c: subset[c].sum() for c in month_cols}
 
         summary_df = pd.DataFrame(rows).T
         summary_df.index.name = "Client"
