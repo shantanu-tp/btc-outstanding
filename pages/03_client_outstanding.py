@@ -119,13 +119,15 @@ pivot.insert(0, "Name", pivot.index.map(name_map).fillna(""))
 
 # ── KPIs ──────────────────────────────────────────────────────────────────────
 total_os      = pivot["Total"].sum()
+total_on_acc  = pivot["On Acc"].sum()
 all_time_total = df["outstanding_billed"].sum()
 
-k1, k2, k3, k4 = st.columns(4)
+k1, k2, k3, k4, k5 = st.columns(5)
 k1.metric("Outstanding (filtered)",  fmt_money(total_os, unit))
-k2.metric("All-time total",          fmt_money(all_time_total, unit))
-k3.metric("Clients",                 f"{len(pivot):,}")
-k4.metric("Months",                  str(len(sorted_cols)))
+k2.metric("On Account",              fmt_money(total_on_acc, unit))
+k3.metric("All-time total",          fmt_money(all_time_total, unit))
+k4.metric("Clients",                 f"{len(pivot):,}")
+k5.metric("Months",                  str(len(sorted_cols)))
 
 st.markdown("---")
 
