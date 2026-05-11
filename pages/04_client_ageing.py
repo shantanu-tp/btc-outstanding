@@ -112,6 +112,8 @@ def _render_ageing_pivot(
         values="outstanding_billed", aggfunc="sum", fill_value=0,
     )
     ordered_cols = [b for b in all_buckets if b in pivot.columns]
+    if "N/A" in pivot.columns:
+        ordered_cols = ordered_cols + ["N/A"]
     pivot = pivot.reindex(columns=ordered_cols, fill_value=0)
     pivot["Total"] = pivot.sum(axis=1)
 

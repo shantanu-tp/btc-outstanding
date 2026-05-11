@@ -123,7 +123,18 @@ def _build_client_ageing(df: pd.DataFrame) -> pd.DataFrame:
     Excludes Cancelled and '#N/A' ageing rows.
     """
     active = df[~df["status"].isin(EXCLUDED_STATUSES)] if "status" in df.columns else df
-    active = active[active["ageing"].isin(AGEING_LABELS)]
+
+    if "co_month" in active.columns:
+        active = active[active["co_month"].notna()]
+        current_month = pd.Timestamp(dt.date.today().replace(day=1))
+        active = active[
+            pd.to_datetime(active["co_month"], format="%b-%y", errors="coerce") <= current_month
+        ]
+
+    active = active.copy()
+    active["ageing"] = active["ageing"].where(
+        active["ageing"].isin(AGEING_LABELS), "N/A"
+    )
 
     agg = (
         active.groupby(["corp_id", "ageing"])
