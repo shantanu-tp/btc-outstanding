@@ -42,6 +42,7 @@ with st.sidebar:
     st.session_state["display_unit"] = st.radio(
         "Unit", DISPLAY_UNITS,
         index=DISPLAY_UNITS.index(current_unit),
+        horizontal=True,
     )
     st.markdown("---")
     st.caption(
@@ -63,6 +64,22 @@ nonstay_df = load_nonstay_mom(_TODAY)
 
 def _month_cols(df: pd.DataFrame) -> list[str]:
     return [c for c in df.columns if c not in ("corporate_id", "corporate_name")]
+
+
+def _combine_mom(stay: pd.DataFrame, nonstay: pd.DataFrame) -> pd.DataFrame:
+    mc = _month_cols(stay)
+    s = stay.set_index("corporate_id")
+    n = nonstay.set_index("corporate_id")
+    all_ids = s.index.union(n.index)
+    s_vals = s[mc].reindex(all_ids, fill_value=0)
+    n_vals = n[mc].reindex(all_ids, fill_value=0)
+    combined = (s_vals + n_vals).copy()
+    names = s["corporate_name"].reindex(all_ids).fillna(
+        n["corporate_name"].reindex(all_ids)
+    ).fillna("")
+    combined.insert(0, "corporate_name", names)
+    combined.index.name = "corporate_id"
+    return combined.sort_values(mc[0], ascending=False).reset_index()
 
 
 def _render_section(df: pd.DataFrame, key: str, title: str) -> None:
@@ -148,6 +165,10 @@ page_header(
     f"Month-to-date receipts · 1st → {_ordinal(_TODAY.day)} of each month · last 6 months",
 )
 
+overall_df = _combine_mom(stay_df, nonstay_df)
+
+st.divider()
+_render_section(overall_df, key="overall", title="Overall (Stay + Non-Stay)")
 st.divider()
 _render_section(stay_df,    key="stay",    title="Stay")
 st.divider()

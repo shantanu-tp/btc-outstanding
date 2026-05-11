@@ -28,6 +28,7 @@ with st.sidebar:
     st.session_state["display_unit"] = st.radio(
         "Unit", DISPLAY_UNITS,
         index=DISPLAY_UNITS.index(st.session_state["display_unit"]),
+        horizontal=True,
     )
     st.markdown("---")
     sidebar_refresh_widget()

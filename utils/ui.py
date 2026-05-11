@@ -6,8 +6,9 @@ import streamlit as st
 _CSS = """
 <style>
 /* ── Hide Streamlit chrome ─────────────────────────────────────────────────── */
-#MainMenu, footer, header { visibility: hidden; }
-[data-testid="stDecoration"] { display: none; }
+#MainMenu, footer { display: none !important; }
+header, [data-testid="stHeader"], [data-testid="stToolbar"],
+[data-testid="stDecoration"], [data-testid="stStatusWidget"] { display: none !important; }
 
 /* ── Typography ────────────────────────────────────────────────────────────── */
 html, body, [class*="css"] {
@@ -18,8 +19,8 @@ html, body, [class*="css"] {
 
 /* ── Layout ────────────────────────────────────────────────────────────────── */
 .main .block-container {
-    padding-top: 1.75rem;
-    padding-bottom: 2.5rem;
+    padding-top: 0.5rem;
+    padding-bottom: 1.5rem;
     max-width: 1440px;
 }
 
@@ -105,6 +106,26 @@ hr { border-color: #e2e8f0 !important; margin: 1rem 0 !important; }
     transition: background 0.15s;
 }
 .stButton > button:hover { background: #f1f5f9; }
+
+/* ── Download buttons — compact ────────────────────────────────────────────── */
+.stDownloadButton > button {
+    border-radius: 6px !important;
+    font-size: 0.72rem !important;
+    font-weight: 500 !important;
+    padding: 0.2rem 0.6rem !important;
+    height: 1.9rem !important;
+    min-height: 0 !important;
+    border: 1px solid #e2e8f0 !important;
+    background: #f8fafc !important;
+    color: #334155 !important;
+}
+.stDownloadButton > button:hover { background: #f1f5f9 !important; }
+
+/* ── Sidebar compact ───────────────────────────────────────────────────────── */
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.3rem !important; }
+[data-testid="stSidebar"] [data-testid="stRadio"] { margin-bottom: 0.2rem !important; }
+[data-testid="stSidebar"] [data-testid="stMultiSelect"] { margin-bottom: 0.2rem !important; }
+[data-testid="stSidebar"] .stSelectbox { margin-bottom: 0.2rem !important; }
 
 /* ── Tabs ──────────────────────────────────────────────────────────────────── */
 [data-baseweb="tab-list"] {
