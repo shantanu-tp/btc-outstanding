@@ -106,10 +106,10 @@ def _build_client_month(df: pd.DataFrame) -> pd.DataFrame:
     ]
 
     agg = (
-        active.groupby(["corp_id", "co_month"])["outstanding"]
-        .sum()
+        active.groupby(["corp_id", "co_month"])
+        .agg(outstanding_billed=("outstanding", "sum"),
+             corporate_name=("corporate_name", "first"))
         .reset_index()
-        .rename(columns={"outstanding": "outstanding_billed"})
     )
     agg["_sort"] = pd.to_datetime(agg["co_month"], format="%b-%y", errors="coerce")
     agg = agg.sort_values(["corp_id", "_sort"]).drop(columns="_sort").reset_index(drop=True)
@@ -126,10 +126,11 @@ def _build_client_ageing(df: pd.DataFrame) -> pd.DataFrame:
     active = active[active["ageing"].isin(AGEING_LABELS)]
 
     agg = (
-        active.groupby(["corp_id", "ageing"])["outstanding"]
-        .sum()
+        active.groupby(["corp_id", "ageing"])
+        .agg(outstanding_billed=("outstanding", "sum"),
+             corporate_name=("corporate_name", "first"))
         .reset_index()
-        .rename(columns={"outstanding": "outstanding_billed", "ageing": "ageing_bucket"})
+        .rename(columns={"ageing": "ageing_bucket"})
     )
     bucket_order = {b: i for i, b in enumerate(AGEING_LABELS)}
     agg["_sort"] = agg["ageing_bucket"].map(bucket_order).fillna(99)
@@ -188,11 +189,11 @@ def _build_non_stay_ageing(df: pd.DataFrame) -> pd.DataFrame:
     valid = df[df["ageing_submission"].notna()].copy()
 
     agg = (
-        valid.groupby(["corp_id", "sub_category", "ageing_submission"])["outstanding"]
-        .sum()
+        valid.groupby(["corp_id", "sub_category", "ageing_submission"])
+        .agg(outstanding_billed=("outstanding", "sum"),
+             corporate_name=("corporate_name", "first"))
         .reset_index()
-        .rename(columns={"outstanding": "outstanding_billed",
-                         "ageing_submission": "ageing_bucket"})
+        .rename(columns={"ageing_submission": "ageing_bucket"})
     )
     bucket_order = {b: i for i, b in enumerate(NON_STAY_AGEING_LABELS)}
     agg["_sort"] = agg["ageing_bucket"].map(bucket_order).fillna(99)

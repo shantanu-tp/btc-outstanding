@@ -47,8 +47,13 @@ page_header("Client Ageing", "Outstanding by ageing bucket")
 st.markdown("---")
 
 # ── Sidebar filters (shared by both sections) ─────────────────────────────────
-all_clients    = sorted(set(df["corp_id"].dropna().unique()) |
-                        set(ns_age["corp_id"].dropna().unique()))
+all_corp_ids = sorted(set(df["corp_id"].dropna().unique()) |
+                      set(ns_age["corp_id"].dropna().unique()))
+name_map_s  = df.groupby("corp_id")["corporate_name"].first() if "corporate_name" in df.columns else {}
+name_map_ns = ns_age.groupby("corp_id")["corporate_name"].first() if "corporate_name" in ns_age.columns else {}
+_nm = {**name_map_ns, **name_map_s}
+all_clients     = all_corp_ids
+all_client_opts = [f"{cid} — {_nm.get(cid, cid)}" for cid in all_corp_ids]
 all_s_buckets  = [b for b in AGEING_LABELS if b in df["ageing_bucket"].unique()]
 
 with st.sidebar:
@@ -58,9 +63,10 @@ with st.sidebar:
     st.session_state["ag_buckets"] = sel_buckets
 
     st.markdown("---")
-    _prev_c = [c for c in st.session_state.get("ag_clients", []) if c in all_clients]
-    sel_clients = st.multiselect("Corp ID", options=all_clients, default=_prev_c)
-    st.session_state["ag_clients"] = sel_clients
+    _prev_c = [o for o in st.session_state.get("ag_clients", []) if o in all_client_opts]
+    sel_client_opts = st.multiselect("Client", options=all_client_opts, default=_prev_c, placeholder="Search by ID or name…")
+    st.session_state["ag_clients"] = sel_client_opts
+    sel_clients = [o.split(" — ")[0] for o in sel_client_opts]
 
     sort_by = st.selectbox("Sort by", ["Total Outstanding"] + all_s_buckets, key="ag_sort")
 
@@ -98,6 +104,8 @@ def _render_ageing_pivot(
         st.caption("No data.")
         return
 
+    name_map = data.groupby("corp_id")["corporate_name"].first() if "corporate_name" in data.columns else {}
+
     all_buckets = [b for b in ageing_labels if b in data["ageing_bucket"].unique()]
     pivot = data.pivot_table(
         index="corp_id", columns="ageing_bucket",
@@ -113,6 +121,7 @@ def _render_ageing_pivot(
 
     sc = sort_col_override if sort_col_override in pivot.columns else "Total"
     pivot = pivot.sort_values(sc, ascending=False)
+    pivot.insert(0, "Name", pivot.index.map(name_map).fillna(""))
 
     total_os   = pivot["Total"].sum()
     on_acc_tot = pivot["On Acc"].sum() if "On Acc" in pivot.columns else 0.0
@@ -126,7 +135,9 @@ def _render_ageing_pivot(
     k4.metric("Overdue >90 days",  fmt_money(overdue_90, unit))
     k5.metric("Clients",           f"{len(pivot):,}")
 
-    display = (pivot / divisor).round(2)
+    numeric_cols = [c for c in pivot.columns if c != "Name"]
+    display = pivot.copy()
+    display[numeric_cols] = (pivot[numeric_cols] / divisor).round(2)
 
     def _cell(val, col):
         if not isinstance(val, (int, float)) or val == 0:
@@ -136,8 +147,8 @@ def _render_ageing_pivot(
         parts = [p for p in [f"background-color: {bg}" if bg else "", fw] if p]
         return "; ".join(parts)
 
-    styled = display.style.format("{:,.2f}")
-    for col in display.columns:
+    styled = display.style.format("{:,.2f}", subset=numeric_cols)
+    for col in numeric_cols:
         styled = styled.applymap(lambda v, c=col: _cell(v, c), subset=[col])
 
     st.caption(f"₹ {unit}")

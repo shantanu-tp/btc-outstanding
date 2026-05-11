@@ -51,7 +51,9 @@ all_months = sorted(
     df["co_month"].dropna().unique(),
     key=lambda m: pd.to_datetime(m, format="%b-%y", errors="coerce"),
 )
+name_map    = df.groupby("corp_id")["corporate_name"].first() if "corporate_name" in df.columns else {}
 all_clients = sorted(df["corp_id"].dropna().unique())
+all_client_opts = [f"{cid} — {name_map.get(cid, cid)}" for cid in all_clients]
 
 _today = _dt.date.today()
 _fy_start_year = _today.year if _today.month >= FY_START_MONTH else _today.year - 1
@@ -79,9 +81,10 @@ with st.sidebar:
     st.session_state["om_months"] = sel_months
 
     st.markdown("---")
-    _prev_c = [c for c in st.session_state.get("om_clients", []) if c in all_clients]
-    sel_clients = st.multiselect("Corp ID", options=all_clients, default=_prev_c)
-    st.session_state["om_clients"] = sel_clients
+    _prev_c = [o for o in st.session_state.get("om_clients", []) if o in all_client_opts]
+    sel_client_opts = st.multiselect("Client", options=all_client_opts, default=_prev_c, placeholder="Search by ID or name…")
+    st.session_state["om_clients"] = sel_client_opts
+    sel_clients = [o.split(" — ")[0] for o in sel_client_opts]
 
     sort_by = st.selectbox("Sort by", ["Total"] + (sel_months or list(all_months)), key="om_sort")
 
@@ -110,8 +113,9 @@ pivot["Total"] = pivot.sum(axis=1)
 sort_col = sort_by if sort_by in pivot.columns else "Total"
 pivot = pivot.sort_values(sort_col, ascending=False)
 
-pivot["On Acc"]          = pivot.index.map(oac_s).fillna(0.0)
+pivot["On Acc"]           = pivot.index.map(oac_s).fillna(0.0)
 pivot["O/S after On Acc"] = pivot["Total"] - pivot["On Acc"]
+pivot.insert(0, "Name", pivot.index.map(name_map).fillna(""))
 
 # ── KPIs ──────────────────────────────────────────────────────────────────────
 total_os      = pivot["Total"].sum()
@@ -126,7 +130,9 @@ k4.metric("Months",                  str(len(sorted_cols)))
 st.markdown("---")
 
 # ── Table ─────────────────────────────────────────────────────────────────────
-display = (pivot / divisor).round(2)
+numeric_cols = [c for c in pivot.columns if c != "Name"]
+display = pivot.copy()
+display[numeric_cols] = (pivot[numeric_cols] / divisor).round(2)
 
 def _hl(val):
     if not isinstance(val, (int, float)) or val <= 0:
@@ -138,14 +144,16 @@ def _hl(val):
     return ""
 
 st.caption(f"₹ {unit} · sorted by {sort_by}")
-styled = display.style.format("{:,.2f}").applymap(_hl)
+styled = display.style.format("{:,.2f}", subset=numeric_cols).applymap(_hl, subset=numeric_cols)
 st.dataframe(styled, use_container_width=True, height=min(580, 44 + len(pivot) * 36))
 
 st.markdown("---")
 
 # ── Trend for selected client ─────────────────────────────────────────────────
-sel_client = st.selectbox("Monthly trend — select client", [""] + list(pivot.index))
-if sel_client:
+trend_opts = [""] + [f"{cid} — {name_map.get(cid, cid)}" for cid in pivot.index]
+sel_trend = st.selectbox("Monthly trend — select client", trend_opts)
+if sel_trend:
+    sel_client = sel_trend.split(" — ")[0]
     import plotly.graph_objects as go
     from components.charts import _CHART_LAYOUT, _BLUE_MID
     row = pivot.loc[sel_client, sorted_cols] / divisor
