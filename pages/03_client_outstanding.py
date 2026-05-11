@@ -58,9 +58,10 @@ all_client_opts = [f"{cid} — {name_map.get(cid, cid)}" for cid in all_clients]
 _today = _dt.date.today()
 _fy_start_year = _today.year if _today.month >= FY_START_MONTH else _today.year - 1
 _fy_start = pd.Timestamp(_fy_start_year, FY_START_MONTH, 1)
-_fy_default = [m for m in all_months
-               if pd.to_datetime(m, format="%b-%y", errors="coerce") >= _fy_start] \
-              or all_months[-6:]
+_fy_months = [m for m in all_months
+              if pd.to_datetime(m, format="%b-%y", errors="coerce") >= _fy_start] \
+             or all_months[-6:]
+_default_6m = all_months[-6:] if len(all_months) >= 6 else all_months
 
 # ── Sidebar filters ───────────────────────────────────────────────────────────
 with st.sidebar:
@@ -70,13 +71,13 @@ with st.sidebar:
     if mc1.button("3M",      key="om_3m",  use_container_width=True):
         st.session_state["om_months"] = all_months[-3:] if len(all_months) >= 3 else all_months
     if mc2.button("6M",      key="om_6m",  use_container_width=True):
-        st.session_state["om_months"] = all_months[-6:] if len(all_months) >= 6 else all_months
+        st.session_state["om_months"] = _default_6m
     if mc3.button("This FY", key="om_fy",  use_container_width=True):
-        st.session_state["om_months"] = _fy_default
+        st.session_state["om_months"] = _fy_months
     if mc4.button("All",     key="om_all", use_container_width=True):
         st.session_state["om_months"] = list(all_months)
 
-    _prev = [m for m in st.session_state.get("om_months", _fy_default) if m in all_months]
+    _prev = [m for m in st.session_state.get("om_months", _default_6m) if m in all_months]
     sel_months = st.multiselect("Months", options=all_months, default=_prev)
     st.session_state["om_months"] = sel_months
 
@@ -119,8 +120,12 @@ pivot.insert(0, "Name", pivot.index.map(name_map).fillna(""))
 
 # ── KPIs ──────────────────────────────────────────────────────────────────────
 total_os      = pivot["Total"].sum()
-total_on_acc  = pivot["On Acc"].sum()
 all_time_total = df["outstanding_billed"].sum()
+# On Account is a live balance — unaffected by month filter, only by client filter
+if sel_clients:
+    total_on_acc = oac_s[oac_s.index.isin(sel_clients)].sum()
+else:
+    total_on_acc = oac_s.sum()
 
 k1, k2, k3, k4, k5 = st.columns(5)
 k1.metric("Outstanding (filtered)",  fmt_money(total_os, unit))
