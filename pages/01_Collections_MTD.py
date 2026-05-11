@@ -120,7 +120,7 @@ def _render_section(df: pd.DataFrame, key: str, title: str) -> None:
 
     # ── By Client view ────────────────────────────────────────────────────────
     else:
-        display_df = df.set_index("corporate_name").drop(columns=["corporate_id"])
+        display_df = df.set_index("corporate_name")
         display_df.index.name = "Client"
 
         st.dataframe(
