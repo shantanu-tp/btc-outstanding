@@ -34,6 +34,7 @@ with st.sidebar:
     st.session_state["display_unit"] = st.radio(
         "Unit", DISPLAY_UNITS,
         index=DISPLAY_UNITS.index(st.session_state["display_unit"]),
+        horizontal=True,
     )
     st.markdown("---")
     sidebar_refresh_widget()
@@ -99,34 +100,32 @@ if not df_all.empty:
     agg = (
         active_all.groupby(grp_cols)
         .agg(
+            corporate_name  = ("corporate_name",  "first"),
             outstanding     = ("outstanding",     "sum"),
             tds             = ("tds",             "sum"),
-            grand_total     = ("grand_total",     "sum"),
-            amount_received = ("amount_received", "sum"),
             bookings        = ("booking_id",      "count"),
         )
         .reset_index()
         .sort_values("outstanding", ascending=False)
     )
-    agg["billed"]      = agg["outstanding"]
-    agg["on_account"]  = agg["corp_id"].map(stay_oac_s).fillna(0.0)
-    agg["net_os"]      = agg["outstanding"] - agg["on_account"]
+    agg["on_account"] = agg["corp_id"].map(stay_oac_s).fillna(0.0)
+    agg["net_os"]     = agg["outstanding"] - agg["on_account"]
+
+    from config.clients import apply_canonical_names
+    agg = apply_canonical_names(agg, "corp_id", "corporate_name")
 
     unit = st.session_state.get("display_unit", "Cr")
     display_agg = agg.copy()
-    for col in ["outstanding", "billed", "tds", "grand_total", "amount_received",
-                "on_account", "net_os"]:
+    for col in ["outstanding", "tds", "on_account", "net_os"]:
         if col in display_agg.columns:
             display_agg[col] = display_agg[col].apply(lambda v: fmt_money(v, unit))
 
     display_agg = display_agg.rename(columns={
         "corp_id":          "Corp ID",
+        "corporate_name":   "Name",
         "category":         "Segment",
         "outstanding":      f"Outstanding ({unit})",
-        "billed":           f"Billed ({unit})",
         "tds":              f"TDS ({unit})",
-        "grand_total":      f"Grand Total ({unit})",
-        "amount_received":  f"Received ({unit})",
         "bookings":         "Bookings",
         "on_account":       f"On Acc ({unit})",
         "net_os":           f"O/S after On Acc ({unit})",
@@ -171,22 +170,18 @@ st.markdown("---")
 
 
 def _ns_kpis(df: pd.DataFrame) -> tuple:
-    outstanding  = float(df["outstanding"].sum())     if "outstanding"    in df.columns else 0.0
-    tds          = float(df["tds"].sum())             if "tds"            in df.columns else 0.0
-    grand_total  = float(df["grand_total"].sum())     if "grand_total"    in df.columns else 0.0
-    received     = float(df["amount_received"].sum()) if "amount_received"in df.columns else 0.0
-    bookings     = len(df)
-    return outstanding, tds, grand_total, received, bookings
+    outstanding = float(df["outstanding"].sum()) if "outstanding" in df.columns else 0.0
+    tds         = float(df["tds"].sum())         if "tds"         in df.columns else 0.0
+    bookings    = len(df)
+    return outstanding, tds, bookings
 
 
 # ── Overall KPIs ──────────────────────────────────────────────────────────────
-os_tot, tds_tot, gt_tot, rcv_tot, bk_tot = _ns_kpis(ns_all)
-nk1, nk2, nk3, nk4, nk5 = st.columns(5)
-nk1.metric("Outstanding",    fmt_money(os_tot,  unit))
-nk2.metric("TDS",            fmt_money(tds_tot, unit))
-nk3.metric("Grand Total",    fmt_money(gt_tot,  unit))
-nk4.metric("Received",       fmt_money(rcv_tot, unit))
-nk5.metric("Transactions",   f"{bk_tot:,}")
+os_tot, tds_tot, bk_tot = _ns_kpis(ns_all)
+nk1, nk2, nk3 = st.columns(3)
+nk1.metric("Outstanding",  fmt_money(os_tot,  unit))
+nk2.metric("TDS",          fmt_money(tds_tot, unit))
+nk3.metric("Transactions", f"{bk_tot:,}")
 
 st.markdown("---")
 
@@ -199,13 +194,11 @@ for tab, cat in zip(ns_tabs, present_cats):
         cat_df = ns_all[ns_all["sub_category"] == cat]
 
         # KPIs
-        c_os, c_tds, c_gt, c_rcv, c_bk = _ns_kpis(cat_df)
-        ck1, ck2, ck3, ck4, ck5 = st.columns(5)
+        c_os, c_tds, c_bk = _ns_kpis(cat_df)
+        ck1, ck2, ck3 = st.columns(3)
         ck1.metric("Outstanding",  fmt_money(c_os,  unit))
         ck2.metric("TDS",          fmt_money(c_tds, unit))
-        ck3.metric("Grand Total",  fmt_money(c_gt,  unit))
-        ck4.metric("Received",     fmt_money(c_rcv, unit))
-        ck5.metric("Transactions", f"{c_bk:,}")
+        ck3.metric("Transactions", f"{c_bk:,}")
 
         st.markdown("---")
 
@@ -213,12 +206,10 @@ for tab, cat in zip(ns_tabs, present_cats):
         cat_agg = (
             cat_df.groupby("corp_id")
             .agg(
-                corporate_name  = ("corporate_name",  "first"),
-                outstanding     = ("outstanding",      "sum"),
-                tds             = ("tds",              "sum"),
-                grand_total     = ("grand_total",      "sum"),
-                amount_received = ("amount_received",  "sum"),
-                transactions    = ("corp_id",          "count"),
+                corporate_name = ("corporate_name", "first"),
+                outstanding    = ("outstanding",    "sum"),
+                tds            = ("tds",            "sum"),
+                transactions   = ("corp_id",        "count"),
             )
             .reset_index()
             .sort_values("outstanding", ascending=False)
@@ -226,21 +217,19 @@ for tab, cat in zip(ns_tabs, present_cats):
 
         cat_agg["on_account"] = cat_agg["corp_id"].map(ns_oac_s).fillna(0.0)
         cat_agg["net_os"]     = cat_agg["outstanding"] - cat_agg["on_account"]
+        cat_agg = apply_canonical_names(cat_agg, "corp_id", "corporate_name")
 
         cat_display = cat_agg.copy()
-        for col in ["outstanding", "tds", "grand_total", "amount_received",
-                    "on_account", "net_os"]:
+        for col in ["outstanding", "tds", "on_account", "net_os"]:
             cat_display[col] = cat_display[col].apply(lambda v: fmt_money(v, unit))
         cat_display = cat_display.rename(columns={
-            "corp_id":          "Corp ID",
-            "corporate_name":   "Name",
-            "outstanding":      f"Outstanding ({unit})",
-            "tds":              f"TDS ({unit})",
-            "grand_total":      f"Grand Total ({unit})",
-            "amount_received":  f"Received ({unit})",
-            "transactions":     "Transactions",
-            "on_account":       f"On Acc ({unit})",
-            "net_os":           f"O/S after On Acc ({unit})",
+            "corp_id":        "Corp ID",
+            "corporate_name": "Name",
+            "outstanding":    f"Outstanding ({unit})",
+            "tds":            f"TDS ({unit})",
+            "transactions":   "Transactions",
+            "on_account":     f"On Acc ({unit})",
+            "net_os":         f"O/S after On Acc ({unit})",
         })
 
         st.dataframe(cat_display, use_container_width=True, hide_index=True,
