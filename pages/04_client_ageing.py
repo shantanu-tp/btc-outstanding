@@ -196,7 +196,7 @@ if df.empty:
 else:
     filt = df.copy()
     if sel_buckets:
-        filt = filt[filt["ageing_bucket"].isin(sel_buckets)]
+        filt = filt[filt["ageing_bucket"].isin(sel_buckets) | (filt["ageing_bucket"] == "N/A")]
     if sel_clients:
         filt = filt[filt["corp_id"].isin(sel_clients)]
 
